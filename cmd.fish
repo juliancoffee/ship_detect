@@ -3,7 +3,7 @@ function trace
     eval $argv
 end
 
-function buildgen
+function rebuild
     if not test -d build
         echo "creating build directory"
         trace mkdir build
@@ -21,4 +21,4 @@ function remake
 end
 
 echo "added remake command"
-echo "added buildgen command"
+echo "added rebuild command"

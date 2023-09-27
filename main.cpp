@@ -1,5 +1,6 @@
 #include <iostream>
+#include <fmt/core.h>
 
 int main() {
-    std::cout << "hello" << std::endl;
+    fmt::print("Hello\n");
 }

@@ -9,8 +9,14 @@ function rebuild
         trace mkdir build
     end
 
+    if contains debug $argv
+        set build_type Debug
+    else
+        set bulid_type Release
+    end
+
     trace cd build
-    trace cmake ..
+    trace cmake -DCMAKE_BUILD_TYPE=$build_type ..
     trace cd ..
 end
 

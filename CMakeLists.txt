@@ -1,20 +1,23 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Project name
 project(ShipDetect)
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 
-# Add external dependencies
+# Deps
 add_subdirectory(external/fmt)
 find_package(OpenCV REQUIRED)
 
-# Add your source files
-add_executable(main main.cpp)
-include_directories(lib)
+# Libs
+add_library(utils INTERFACE)
+target_include_directories(utils INTERFACE lib)
+target_link_libraries(utils INTERFACE fmt ${OpenCV_LIBS})
 
-# Register external dependencies
-target_link_libraries(main fmt)
-target_link_libraries(main ${OpenCV_LIBS})
+# Binaries
+add_executable(main main.cpp)
+target_link_libraries(main utils)
+
+add_executable(example example.cpp)
+target_link_libraries(example utils)

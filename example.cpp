@@ -33,7 +33,7 @@ auto load_edgedetect_model() -> Ptr<StructuredEdgeDetection> {
 auto load_edgebox_detect() -> Ptr<EdgeBoxes> {
     auto edgebox_detector = timeit("edgebox detector load", []() {
         auto edgeboxes = createEdgeBoxes();
-        edgeboxes->setMaxBoxes(10);
+        edgeboxes->setMaxBoxes(3);
 
         return edgeboxes;
     }).trace();
@@ -124,15 +124,51 @@ auto write_boxes(Mat im, std::vector<Rect> boxes, std::vector<float> scores) {
     }
 }
 
-auto show_image(std::string name, Mat im) {
+auto show_image(std::string name, Mat im, int wait_for = 0, bool keep = false) {
     cv::imshow(name, im);
     cv::moveWindow(name, 0, 0);
 
     int key = 0;
     while (key != 'q') {
-        key = cv::waitKey(0);
+        key = cv::waitKey(wait_for);
     }
-    cv::destroyAllWindows();
+
+    if (!keep) {
+        cv::destroyAllWindows();
+    }
+}
+
+auto process_image(
+        Ptr<StructuredEdgeDetection> edge_detector,
+        Ptr<EdgeBoxes> edgebox_detector,
+        Mat im,
+        int wait_for = 0,
+        bool keep = false)
+{
+    auto edge_im = detect_edges(edge_detector, im);
+    auto O = compute_orientation(edge_detector, edge_im);
+    auto edge_nms = do_nms(edge_detector, edge_im, O);
+
+    auto [boxes, scores] = find_boxes(edgebox_detector, edge_nms, O);
+
+    Mat display;
+    cv::cvtColor(edge_im, display, cv::COLOR_GRAY2RGB);
+    write_boxes(display, boxes, scores);
+    show_image("image with boxes", display, wait_for, keep);
+}
+
+auto process_image(
+        Ptr<StructuredEdgeDetection> edge_detector,
+        Ptr<EdgeBoxes> edgebox_detector,
+        char *image_filename,
+        int wait_for = 0,
+        bool keep = false)
+{
+    auto im = load_image(image_filename);
+    fmt::print("\nimage {}x{}\n", im.rows, im.cols);
+
+    process_image(edge_detector, edgebox_detector, im, wait_for, keep);
+
 }
 
 auto main(int argc, char** argv) -> int {
@@ -144,20 +180,7 @@ auto main(int argc, char** argv) -> int {
 
     auto edge_detector = load_edgedetect_model();
     auto edgebox_detector = load_edgebox_detect();
-
-    auto im = load_image(image_filename);
-    fmt::print("\nimage {}x{}\n", im.rows, im.cols);
-
-    auto edge_im = detect_edges(edge_detector, im);
-    auto O = compute_orientation(edge_detector, edge_im);
-    auto edge_nms = do_nms(edge_detector, edge_im, O);
-
-    auto [boxes, scores] = find_boxes(edgebox_detector, edge_nms, O);
-
-    Mat display;
-    cv::cvtColor(edge_im, display, cv::COLOR_GRAY2RGB);
-    write_boxes(display, boxes, scores);
-    show_image("image with boxes", display);
+    process_image(edge_detector, edgebox_detector, image_filename);
 
     return 0;
 }

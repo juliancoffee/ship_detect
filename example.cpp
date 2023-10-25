@@ -147,11 +147,17 @@ auto show_image(std::string name, Mat im, int wait_for = 0, bool keep = false) {
     cv::moveWindow(name, 0, 0);
 
     int key = 0;
+
     while (key != 'q') {
         key = cv::waitKey(wait_for);
+
+        if (wait_for != 0) {
+            break;
+        }
     }
 
-    if (!keep) {
+    auto destroy = !keep;
+    if (destroy) {
         cv::destroyAllWindows();
     }
 }
@@ -200,16 +206,26 @@ auto process_video(
     fmt::print("[capture object created]\n");
     capture.open(video_filename);
 
-    if (capture.isOpened()) {
-        fmt::print("[video captured]\n");
-    } else {
+    if (!capture.isOpened()) {
         fmt::print("[video capture error]\n");
+        return; // Exit the function if the video cannot be opened.
     }
+    fmt::print("[video captured]\n");
 
-    while(true) {
-        capture.read(frame_buffer);
+    while (true) {
+        auto res = capture.read(frame_buffer);
+        if (!res) {
+            fmt::print("[error reading frame]\n");
+            break; // Exit the loop if there's an error reading a frame.
+        }
         fmt::print("[got frame read]\n");
-        process_image(edge_detector, edgebox_detector, frame_buffer);
+
+        Mat input_im;
+        frame_buffer.convertTo(input_im, CV_32FC3, 1.0 / 255.0);
+
+        fmt::print("[image converted]\n");
+
+        process_image(edge_detector, edgebox_detector, input_im, 1, true);
     }
 }
 

@@ -8,16 +8,17 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 
 # Deps
 add_subdirectory(external/fmt)
+add_subdirectory(external/argparse)
 find_package(OpenCV REQUIRED)
 
 # Libs
 add_library(utils INTERFACE)
 target_include_directories(utils INTERFACE lib)
-target_link_libraries(utils INTERFACE fmt ${OpenCV_LIBS})
+target_link_libraries(utils INTERFACE fmt ${OpenCV_LIBS} argparse)
 
 # Binaries
 add_executable(main main.cpp)
 target_link_libraries(main utils)
 
 add_executable(example example.cpp)
-target_link_libraries(example utils)
+target_link_libraries(example utils argparse)

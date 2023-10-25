@@ -1,11 +1,14 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
-#include <algorithm>
-#include <numeric>
+#include <argparse/argparse.hpp>
+
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/ximgproc.hpp>
+
+#include <algorithm>
+#include <numeric>
 #include <stdexcept>
 
 #include "utils.hpp"
@@ -30,10 +33,20 @@ auto load_edgedetect_model() -> Ptr<StructuredEdgeDetection> {
     return edge_detect;
 }
 
-auto load_edgebox_detect() -> Ptr<EdgeBoxes> {
-    auto edgebox_detector = timeit("edgebox detector load", []() {
+struct EdgeBoxOpts {
+    int n;
+    float edge_merge;
+    float cluster_min_mag;
+    float min_box_area;
+};
+
+auto load_edgebox_detect(EdgeBoxOpts opts) -> Ptr<EdgeBoxes> {
+    auto edgebox_detector = timeit("edgebox detector load", [=]() {
         auto edgeboxes = createEdgeBoxes();
-        edgeboxes->setMaxBoxes(3);
+        edgeboxes->setMaxBoxes(opts.n);
+        edgeboxes->setEdgeMergeThr(opts.edge_merge);
+        edgeboxes->setClusterMinMag(opts.cluster_min_mag);
+        edgeboxes->setMinBoxArea(opts.min_box_area);
 
         return edgeboxes;
     }).trace();
@@ -99,11 +112,13 @@ auto find_boxes(Ptr<EdgeBoxes> box_detector, Mat edge_nms, Mat O)
 
 auto write_boxes(Mat im, std::vector<Rect> boxes, std::vector<float> scores) {
     const auto green = cv::Scalar(0, 255, 0);
+    const auto blue = cv::Scalar(255, 0, 0);
     const auto red = cv::Scalar(0, 0, 255);
 
     auto [min_score, max_score] = minmax_element(scores.begin(), scores.end());
     auto avg_score = std::reduce(scores.begin(), scores.end()) / scores.size();
-    auto score75 = *max_score - (avg_score / 2);
+    auto score75 = *max_score - (avg_score / 2.0);
+    auto score95 = *max_score - (avg_score / 10.0);
     fmt::print(
         "stats: min={}, average={}, max={}.\n",
         *min_score,
@@ -117,10 +132,13 @@ auto write_boxes(Mat im, std::vector<Rect> boxes, std::vector<float> scores) {
         // right-bottom corner
         cv::Point p2 { box.x + box.width, box.y + box.height };
 
-        auto [color, thickness] = scores[i] < score75
-            ? std::make_tuple(red, 1)
-            : std::make_tuple(green, 3);
-        cv::rectangle(im, p1, p2, color, thickness);
+        if (scores[i] > score95) {
+            cv::rectangle(im, p1, p2, green, 3);
+        } else if (scores[i] > score75) {
+            cv::rectangle(im, p1, p2, blue, 2);
+        } else {
+            cv::rectangle(im, p1, p2, red, 1);
+        }
     }
 }
 
@@ -160,27 +178,70 @@ auto process_image(
 auto process_image(
         Ptr<StructuredEdgeDetection> edge_detector,
         Ptr<EdgeBoxes> edgebox_detector,
-        char *image_filename,
+        std::string image_filename,
         int wait_for = 0,
         bool keep = false)
 {
     auto im = load_image(image_filename);
-    fmt::print("\nimage {}x{}\n", im.rows, im.cols);
+    fmt::print("\nimage {}: {}x{}\n", image_filename, im.rows, im.cols);
 
     process_image(edge_detector, edgebox_detector, im, wait_for, keep);
 
 }
 
-auto main(int argc, char** argv) -> int {
-    if (argc < 2) {
-        throw std::runtime_error("please provide image filename");
+auto process_video(
+        Ptr<StructuredEdgeDetection> edge_detector,
+        Ptr<EdgeBoxes> edgebox_detector,
+        std::string video_filename)
+{
+    Mat frame_buffer;
+    cv::VideoCapture capture;
+
+    fmt::print("[capture object created]\n");
+    capture.open(video_filename);
+
+    if (capture.isOpened()) {
+        fmt::print("[video captured]\n");
+    } else {
+        fmt::print("[video capture error]\n");
     }
 
-    auto image_filename = argv[1];
+    while(true) {
+        capture.read(frame_buffer);
+        fmt::print("[got frame read]\n");
+        process_image(edge_detector, edgebox_detector, frame_buffer);
+    }
+}
+
+struct MyArgs : argparse::Args {
+    std::string &filename = arg("file name");
+    bool &video = flag("video", "video mode");
+    int &n = kwarg("n", "number of boxes").set_default(5);
+    float &min_box_area = kwarg("area", "min box").set_default(1000.0);
+    float &edge_merge = kwarg("merge", "edge merge threshold").set_default(0.5);
+    float &cluster_min_mag = kwarg("cluster", "cluster min magnitude").set_default(0.5);
+};
+
+auto main(int argc, char** argv) -> int {
+    MyArgs args = argparse::parse<MyArgs>(argc, argv);
+
 
     auto edge_detector = load_edgedetect_model();
-    auto edgebox_detector = load_edgebox_detect();
-    process_image(edge_detector, edgebox_detector, image_filename);
+
+    int n = args.n;
+    float min_box_area = args.min_box_area;
+    float edge_merge = args.edge_merge;
+    float cluster_min_mag = args.cluster_min_mag;
+    EdgeBoxOpts opts {n, edge_merge, cluster_min_mag, min_box_area};
+    auto edgebox_detector = load_edgebox_detect(opts);
+
+    if (args.video) {
+        auto video_filename = args.filename;
+        process_video(edge_detector, edgebox_detector, video_filename);
+    } else {
+        auto image_filename = args.filename;
+        process_image(edge_detector, edgebox_detector, image_filename);
+    }
 
     return 0;
 }

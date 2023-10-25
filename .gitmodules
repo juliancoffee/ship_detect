@@ -1,6 +1,6 @@
-[submodule "fmt"]
-	path = fmt
-	url = https://github.com/fmtlib/fmt
 [submodule "external/fmt"]
 	path = external/fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "external/argparse"]
+	path = external/argparse
+	url = https://github.com/morrisfranken/argparse

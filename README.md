@@ -14,6 +14,9 @@ $ cmake ..
 $ make
 ```
 
+# Data
+Example assumes that you have a folder `data` with `model.yml` in it. You can get it [here](https://github.com/opencv/opencv_extra/raw/master/testdata/cv/ximgproc/model.yml.gz).
+
 # Run
 Run build/example --help to see all available options
 

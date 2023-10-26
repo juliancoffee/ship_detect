@@ -142,6 +142,34 @@ auto write_boxes(Mat im, std::vector<Rect> boxes, std::vector<float> scores) {
     }
 }
 
+auto draw_contours(Mat src) -> Mat {
+    using namespace cv;
+
+    // Convert to CV_8UC1 if not already
+    if (src.type() != CV_8UC1) {
+        src.convertTo(src, CV_8UC1, 255);  // Assuming the image is in range [0,1]
+    }
+
+    // Threshold the edge image to get a binary image
+    threshold(src, src, 128, 255, THRESH_BINARY);
+    Mat dst = Mat::zeros(src.rows, src.cols, CV_8UC3);
+
+    std::vector<std::vector<Point>> contours;
+    std::vector<Vec4i> hierarchy;
+
+    findContours(src, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
+
+    // iterate through all the top-level contours,
+    // draw each connected component with its own random color
+    for(int idx = 0; idx >= 0; idx = hierarchy[idx][0])
+    {
+        Scalar color(rand() & 255, rand() & 255, rand() & 255);
+        drawContours(dst, contours, idx, color, FILLED, 8, hierarchy);
+    }
+
+    return dst;
+}
+
 auto show_image(std::string name, Mat im, int wait_for = 0, bool keep = false) {
     cv::imshow(name, im);
     cv::moveWindow(name, 0, 0);
@@ -175,8 +203,9 @@ auto process_image(
 
     auto [boxes, scores] = find_boxes(edgebox_detector, edge_nms, O);
 
-    Mat display;
-    cv::cvtColor(edge_im, display, cv::COLOR_GRAY2RGB);
+    // Mat display;
+    // cv::cvtColor(edge_im, display, cv::COLOR_GRAY2RGB);
+    Mat display = draw_contours(edge_im);
     write_boxes(display, boxes, scores);
     show_image("image with boxes", display, wait_for, keep);
 }
